@@ -1,0 +1,19 @@
+# Secrets — never commit
+.env
+*.key
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Runtime artifacts
+*.db
+*.sqlite3
+ledger.db
+
+# Local Claude Code tooling — personal skill library, not project source
+.claude/
+.agents/

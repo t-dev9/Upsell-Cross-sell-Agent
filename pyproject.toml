@@ -1,0 +1,29 @@
+[project]
+name = "uplift"
+version = "0.1.0"
+description = "An upsell & cross-sell agent that is structurally incapable of discounting."
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "pydantic>=2.9",
+    "rich>=13.9",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+uplift = "uplift.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["uplift"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"uplift/ui.html" = "uplift/ui.html"

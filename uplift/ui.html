@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UPLIFT / MONEY GUARD</title>
+<style>
+  /* Tactical Telemetry. Dark substrate, monospace dominance, hazard red as the only
+     accent, terminal green reserved for exactly one thing: an executed money action.
+     No border-radius anywhere. No gradients. Hairlines via grid gap. */
+  :root{
+    --bg:#0A0A0A; --panel:#121212; --line:#2A2A2A; --line-hot:#3A3A3A;
+    --fg:#EAEAEA; --dim:#8A8A8A; --dimmer:#5A5A5A;
+    --red:#E61919; --red-hot:#FF2A2A; --green:#4AF626;
+    --mono:ui-monospace,"JetBrains Mono","IBM Plex Mono","Cascadia Mono",Consolas,"Courier New",monospace;
+  }
+  *{box-sizing:border-box;border-radius:0!important}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--fg); font-family:var(--mono);
+    font-size:13px; line-height:1.4; letter-spacing:.02em;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* CRT sweep + grain. Kept low so data stays legible — this is an audit tool. */
+  /* CRT sweep is a Technical-view-only effect — must not paint over the light Simple view. */
+  body:not(.simple-active)::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:9999;
+    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.16) 2px,rgba(0,0,0,.16) 3px);
+    opacity:.5;
+  }
+  .wrap{max-width:1400px;margin:0 auto;padding:0 20px 80px}
+
+  /* ---- macro type: viewport-scaled, tight, uppercase ---- */
+  header{border-bottom:2px solid var(--fg);padding:28px 0 14px;margin-bottom:0}
+  h1{
+    font-size:clamp(2.6rem,9vw,7.5rem); line-height:.82; letter-spacing:-.045em;
+    margin:0; font-weight:800; text-transform:uppercase;
+  }
+  h1 .slash{color:var(--red)}
+  .sub{
+    display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between;
+    margin-top:14px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)
+  }
+  .claim{
+    border-left:3px solid var(--red);padding:10px 0 10px 14px;margin:22px 0;
+    font-size:13px;color:var(--fg);max-width:70ch
+  }
+  .claim b{color:var(--red-hot)}
+
+  h2{
+    font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);
+    margin:34px 0 10px;font-weight:600;display:flex;align-items:center;gap:10px
+  }
+  h2::after{content:"";flex:1;height:1px;background:var(--line)}
+  .stage-no{color:var(--red);font-weight:700}
+
+  /* ---- controls ---- */
+  .controls{display:flex;flex-wrap:wrap;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:6px}
+  button{
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    background:var(--panel);color:var(--fg);border:0;padding:13px 18px;cursor:pointer;
+    transition:background .1s linear
+  }
+  button:hover:not(:disabled){background:#1D1D1D}
+  button:disabled{color:var(--dimmer);cursor:not-allowed}
+  button.danger{color:var(--red-hot)}
+  button.danger:hover:not(:disabled){background:var(--red);color:#fff}
+  button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+
+  /* ---- verdict: the centrepiece ---- */
+  .verdict{border:2px solid var(--line);padding:20px;margin-top:6px;background:var(--panel)}
+  .verdict.blocked{border-color:var(--red)}
+  .verdict.approved{border-color:var(--green)}
+  .verdict.idle{border-style:dashed;color:var(--dimmer)}
+  .verdict-word{
+    font-size:clamp(2rem,6vw,4.5rem);line-height:.85;letter-spacing:-.04em;
+    text-transform:uppercase;font-weight:800;margin:0
+  }
+  .verdict.blocked .verdict-word{color:var(--red-hot)}
+  .verdict.approved .verdict-word{color:var(--green)}
+  .verdict-line{margin-top:14px;font-size:13px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px}
+  .verdict-line dt{color:var(--dim);font-size:10px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+  .verdict-line dd{margin:0}
+  .cite{color:var(--red-hot)}
+
+  /* ---- tables: hairlines from grid gap, per the grid-determinism directive ---- */
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{
+    text-align:left;font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--dim);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line-hot)
+  }
+  td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr.filtered td{color:var(--dimmer);text-decoration:line-through}
+  tr.filtered td.why{text-decoration:none;color:var(--red);font-size:10px;letter-spacing:.06em}
+  tr.rogue td{color:var(--red-hot)}
+  td.num{text-align:right;white-space:nowrap}
+  .panel{border:1px solid var(--line);background:var(--panel)}
+  .pad{padding:16px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line)}
+  .grid2>*{background:var(--panel);padding:16px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12px}
+  .kv dt{color:var(--dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+  .kv dd{margin:0}
+
+  .tag{
+    display:inline-block;padding:2px 7px;border:1px solid currentColor;
+    font-size:9px;letter-spacing:.14em;text-transform:uppercase
+  }
+  .tag.ai{color:var(--red-hot)} .tag.fallback{color:var(--dim)}
+
+  .injected{border:1px solid var(--red);padding:12px;margin-top:6px;color:var(--red-hot);font-size:11px;word-break:break-word}
+
+  .score{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .score-num{font-size:clamp(3rem,10vw,7rem);line-height:.8;letter-spacing:-.05em;font-weight:800;color:var(--green)}
+  .score-num.bad{color:var(--red-hot)}
+
+  .bars{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:14px}
+  .bar{background:var(--panel);padding:9px 12px;display:grid;grid-template-columns:1fr auto;gap:12px;font-size:11px}
+  .bar b{color:var(--green);font-variant-numeric:tabular-nums}
+
+  .note{color:var(--dim);font-size:10px;letter-spacing:.08em;margin-top:10px;max-width:80ch;line-height:1.6}
+  .note.warn{color:var(--red)}
+  samp{font-family:var(--mono)}
+  .spin{color:var(--dim);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);color:var(--dimmer);font-size:10px;letter-spacing:.12em;text-transform:uppercase;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+  /* ================= SIMPLE VIEW — high-end, soft-structuralist ================= */
+  /* Premium webfonts / icon-fonts need a CDN, which uplift serve deliberately does not
+     load (CLAUDE.md §11: stdlib-only, no build step, no CDN). Depth here comes from
+     shadow layering, spacing and motion instead of typeface — the system UI font is as
+     far as this stack can honestly go without one. */
+  :root{
+    --hx-bg:#F3F4F7; --hx-surface:#FFFFFF;
+    --hx-ink:#0A1220; --hx-body:#3C4656; --hx-mute:#7C8798;
+    --hx-accent:#3395FF; --hx-accent-ink:#0B4A96; --hx-accent-soft:#EAF3FF;
+    --hx-green:#12996B; --hx-green-soft:#E7F8F1;
+    --hx-red:#E0303D; --hx-red-soft:#FDEAEC;
+    --hx-amber:#B45309; --hx-amber-soft:#FEF3E2;
+    --hx-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --hx-ease:cubic-bezier(.22,1,.36,1);
+    --hx-shadow-sm:0 1px 2px rgba(10,18,32,.06);
+    --hx-shadow-md:0 1px 2px rgba(10,18,32,.04), 0 14px 28px -10px rgba(10,18,32,.14);
+    --hx-shadow-lg:0 2px 4px rgba(10,18,32,.05), 0 28px 56px -16px rgba(10,18,32,.22);
+  }
+  #view-toggle{
+    position:sticky;top:0;z-index:20;display:flex;justify-content:center;gap:8px;
+    padding:16px 0;background:rgba(243,244,247,.82);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    font-family:var(--hx-sans);
+  }
+  #view-toggle button{
+    font-family:var(--hx-sans);font-size:13px;font-weight:600;letter-spacing:0;
+    text-transform:none;background:var(--hx-surface);color:var(--hx-mute);border:0;
+    padding:9px 20px;border-radius:999px!important;cursor:pointer;
+    box-shadow:var(--hx-shadow-sm);transition:all .45s var(--hx-ease);
+  }
+  #view-toggle button:hover{color:var(--hx-ink)}
+  #view-toggle button[aria-pressed="true"]{background:var(--hx-ink);color:#fff;box-shadow:var(--hx-shadow-md)}
+  body.simple-active{background:var(--hx-bg)}
+
+  #simple-view{
+    display:none;font-family:var(--hx-sans);background:var(--hx-bg);color:var(--hx-body);
+    min-height:100vh;
+  }
+  body.simple-active #simple-view{display:block}
+  body.simple-active #technical-view{display:none}
+
+  .sv-wrap{max-width:860px;margin:0 auto;padding:64px 24px 110px}
+  .sv-header{text-align:center;margin-bottom:64px}
+  .sv-brand{
+    display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;
+    color:var(--hx-accent-ink);background:var(--hx-accent-soft);
+    border-radius:999px!important;padding:6px 16px;letter-spacing:.16em;
+    text-transform:uppercase;margin-bottom:22px
+  }
+  .sv-title{font-size:36px;font-weight:800;color:var(--hx-ink);margin:0 0 12px;letter-spacing:-.025em;line-height:1.15}
+  .sv-sub{font-size:16px;color:var(--hx-mute);margin:0;line-height:1.6}
+
+  .sv-section{margin:0 0 56px}
+  .sv-section h2{margin:0 0 20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+  .sv-eyebrow{
+    display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--hx-accent-ink);
+    background:var(--hx-accent-soft);border-radius:999px!important;padding:4px 13px
+  }
+  .sv-heading-text{font-size:19px;font-weight:800;color:var(--hx-ink);letter-spacing:-.01em}
+  .sv-hint{font-size:12.5px;color:var(--hx-mute);margin:-10px 0 16px}
+
+  /* ---- inventory grid ---- */
+  .sv-inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(152px,1fr));gap:12px}
+  .sv-inv-card{
+    text-align:left;border:0;border-radius:14px!important;
+    padding:14px 16px;background:var(--hx-surface);cursor:pointer;
+    box-shadow:var(--hx-shadow-sm);
+    transition:box-shadow .45s var(--hx-ease),transform .45s var(--hx-ease),background .3s ease;
+    font-family:var(--hx-sans)
+  }
+  .sv-inv-card:hover{box-shadow:var(--hx-shadow-md);transform:translateY(-2px)}
+  .sv-inv-card.selected{background:var(--hx-accent-soft);box-shadow:var(--hx-shadow-md);transform:translateY(-2px)}
+  .sv-inv-card:disabled{opacity:.55;cursor:wait;transform:none}
+  .sv-inv-name{font-weight:600;font-size:13px;color:var(--hx-ink);line-height:1.3}
+  .sv-inv-price{font-size:12px;color:var(--hx-mute);margin-top:4px}
+
+  /* ---- order / history card ---- */
+  .sv-card{background:var(--hx-surface);border-radius:16px!important;padding:20px 24px;box-shadow:var(--hx-shadow-sm)}
+  .sv-kv{display:grid;grid-template-columns:auto 1fr;gap:8px 20px;font-size:13.5px}
+  .sv-kv dt{color:var(--hx-mute);font-size:10px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+  .sv-kv dd{margin:0;color:var(--hx-ink)}
+
+  /* ---- pipeline stage cards ---- */
+  .sv-stage{
+    background:var(--hx-surface);border-radius:16px!important;
+    padding:18px 22px;margin-bottom:12px;box-shadow:var(--hx-shadow-sm)
+  }
+  .sv-stage-head{display:flex;align-items:center;gap:10px;margin-bottom:7px;flex-wrap:wrap}
+  .sv-stage-title{font-weight:700;color:var(--hx-ink);font-size:14px;display:inline-flex;align-items:center;gap:7px}
+  .sv-stage-tag{
+    font-size:10px;font-weight:700;color:var(--hx-accent-ink);background:var(--hx-accent-soft);
+    border-radius:6px!important;padding:3px 9px;text-transform:uppercase;letter-spacing:.05em
+  }
+  .sv-stage-desc{font-size:12.5px;color:var(--hx-mute);margin:0 0 9px;line-height:1.55}
+  .sv-stage-result{font-size:14px;color:var(--hx-body);line-height:1.55;opacity:0;transform:translateY(6px);transition:opacity .5s var(--hx-ease),transform .5s var(--hx-ease)}
+  .sv-stage-result.in{opacity:1;transform:translateY(0)}
+  .sv-stage-result b{color:var(--hx-ink)}
+  .sv-stage-result ul{margin:7px 0 0;padding-left:18px}
+  .sv-stage-result li{margin:3px 0}
+
+  /* double-bezel: outer tinted shell + inner white core, for the centrepiece card */
+  .sv-stage.guard{
+    background:var(--hx-accent-soft);padding:7px;box-shadow:var(--hx-shadow-md);
+    transition:background .4s ease,box-shadow .4s ease
+  }
+  .sv-stage.guard .sv-guard-core{
+    background:var(--hx-surface);border-radius:12px!important;padding:20px 22px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  .sv-stage.guard .sv-stage-title{font-size:16px}
+  .sv-stage.guard.approved{background:var(--hx-green-soft)}
+  .sv-stage.guard.blocked{background:var(--hx-red-soft)}
+  .sv-stage.guard.pending{background:var(--hx-amber-soft)}
+  .sv-guard-word{font-size:21px;font-weight:800;margin:2px 0 9px;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+  .sv-stage.guard.approved .sv-guard-word{color:var(--hx-green)}
+  .sv-stage.guard.blocked .sv-guard-word{color:var(--hx-red)}
+  .sv-stage.guard.pending .sv-guard-word{color:var(--hx-amber)}
+  .sv-icon{width:20px;height:20px;flex:none}
+  .sv-icon-sm{width:15px;height:15px;flex:none}
+
+  /* ---- decision-tree diagram ---- */
+  .sv-tree{background:var(--hx-surface);border-radius:18px!important;padding:28px 22px;text-align:center;box-shadow:var(--hx-shadow-sm)}
+  .sv-tree-row{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:0}
+  .sv-tree-connector{width:2px;height:24px;margin:2px auto;background:linear-gradient(var(--hx-accent-soft),transparent),linear-gradient(var(--hx-mute),var(--hx-mute));background-size:100% 60%,2px 40%;background-repeat:no-repeat;background-position:top,bottom;opacity:.35}
+  .sv-tree-box{
+    border:0;border-radius:999px!important;padding:9px 16px;
+    font-size:12px;font-weight:600;color:var(--hx-mute);background:var(--hx-bg);
+    box-shadow:var(--hx-shadow-sm);transition:all .4s var(--hx-ease)
+  }
+  .sv-tree-box.active{color:var(--hx-accent-ink);background:var(--hx-accent-soft);box-shadow:var(--hx-shadow-md)}
+  .sv-tree-box.active.block{color:var(--hx-red);background:var(--hx-red-soft)}
+  .sv-tree-box.active.approve{color:var(--hx-green);background:var(--hx-green-soft)}
+  .sv-tree-box.active.pending{color:var(--hx-amber);background:var(--hx-amber-soft)}
+  .sv-tree-box.dest{font-size:11px}
+
+  .sv-actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:22px}
+  .sv-actions button{
+    font-family:var(--hx-sans);font-size:13.5px;font-weight:600;letter-spacing:0;
+    text-transform:none;border-radius:999px!important;padding:6px 8px 6px 20px;cursor:pointer;border:0;
+    display:inline-flex;align-items:center;gap:10px;
+    box-shadow:var(--hx-shadow-sm);transition:all .45s var(--hx-ease);
+  }
+  .sv-actions button:hover:not(:disabled){box-shadow:var(--hx-shadow-md);transform:translateY(-1px)}
+  .sv-actions button:active:not(:disabled){transform:translateY(0) scale(.98)}
+  .sv-actions button:disabled{opacity:.5;cursor:not-allowed}
+  .sv-actions .primary{background:var(--hx-accent);color:#fff}
+  .sv-actions .ghost{background:var(--hx-surface);color:var(--hx-ink)}
+  .sv-btn-chip{
+    width:26px;height:26px;border-radius:999px!important;flex:none;
+    display:inline-flex;align-items:center;justify-content:center;font-size:13px;
+    background:rgba(255,255,255,.22)
+  }
+  .sv-actions .ghost .sv-btn-chip{background:rgba(10,18,32,.06)}
+
+  .sv-score{font-size:13px;color:var(--hx-mute);line-height:1.65}
+  .sv-score b{color:var(--hx-ink)}
+  .sv-skel{color:var(--hx-mute);font-size:13px;font-style:italic;opacity:1!important;transform:none!important}
+</style>
+</head>
+<body class="simple-active">
+
+<div id="view-toggle">
+  <button id="toggle-simple" aria-pressed="true">Simple</button>
+  <button id="toggle-technical" aria-pressed="false">Technical</button>
+</div>
+
+<div id="simple-view">
+  <div class="sv-wrap">
+    <div class="sv-header">
+      <div class="sv-brand">UPLIFT</div>
+      <h1 class="sv-title">Can an AI hand out an unlimited discount?</h1>
+      <p class="sv-sub">Click any product below. Everything that happens next is a real run of the system.</p>
+    </div>
+
+    <section class="sv-section">
+      <h2><span class="sv-eyebrow">Step 01</span><span class="sv-heading-text">What we sell</span></h2>
+      <p class="sv-hint">Click a product — that's the customer's purchase, and it runs the whole pipeline for it.</p>
+      <div class="sv-inv-grid" id="sv-inventory"><span class="sv-skel">Loading catalog…</span></div>
+    </section>
+
+    <section class="sv-section">
+      <h2><span class="sv-eyebrow">Step 02</span><span class="sv-heading-text">Customer · order · cart · history</span></h2>
+      <div class="sv-card">
+        <dl class="sv-kv" id="sv-order"><dd class="sv-skel">Pick a product above to start.</dd></dl>
+      </div>
+    </section>
+
+    <section class="sv-section">
+      <h2><span class="sv-eyebrow">Step 03</span><span class="sv-heading-text">What happens next</span></h2>
+
+      <div class="sv-stage" id="sv-stage-1">
+        <div class="sv-stage-head"><span class="sv-stage-title">1 · Lever enumeration</span><span class="sv-stage-tag">Deterministic</span></div>
+        <p class="sv-stage-desc">Checks all 6 upsell / cross-sell levers for this item.</p>
+        <div class="sv-stage-result sv-skel">—</div>
+      </div>
+
+      <div class="sv-stage" id="sv-stage-2">
+        <div class="sv-stage-head"><span class="sv-stage-title">2 · Eligibility + qualification</span><span class="sv-stage-tag">Deterministic</span></div>
+        <p class="sv-stage-desc">Removes offers this buyer is not allowed to receive.</p>
+        <div class="sv-stage-result sv-skel">—</div>
+      </div>
+
+      <div class="sv-stage" id="sv-stage-3">
+        <div class="sv-stage-head"><span class="sv-stage-title">3 · Select · sequence · pitch</span><span class="sv-stage-tag">LLM</span></div>
+        <p class="sv-stage-desc">Can choose only from eligible offers. Must return structured JSON — one repair attempt if invalid, otherwise falls back to an eligible offer.</p>
+        <div class="sv-stage-result sv-skel">—</div>
+      </div>
+
+      <div class="sv-stage guard" id="sv-stage-4">
+        <div class="sv-guard-core">
+          <div class="sv-stage-head">
+            <span class="sv-stage-title">
+              <svg class="sv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+              4 · Money Guard
+            </span>
+            <span class="sv-stage-tag">Deterministic chokepoint</span>
+          </div>
+          <p class="sv-stage-desc">Independently re-checks the proposed action and blocks anything that violates a rule — whatever proposed it.</p>
+          <div class="sv-stage-result sv-skel">—</div>
+        </div>
+      </div>
+
+      <div class="sv-stage" id="sv-stage-5">
+        <div class="sv-stage-head"><span class="sv-stage-title">5 · Execute</span><span class="sv-stage-tag">Razorpay test mode</span></div>
+        <p class="sv-stage-desc">Only happens after Money Guard approves.</p>
+        <div class="sv-stage-result sv-skel">—</div>
+      </div>
+
+      <div class="sv-stage" id="sv-stage-6">
+        <div class="sv-stage-head"><span class="sv-stage-title">6 · Ledger</span></div>
+        <p class="sv-stage-desc">Append-only record of what happened.</p>
+        <div class="sv-stage-result sv-skel">—</div>
+      </div>
+
+      <div class="sv-stage" id="sv-stage-7">
+        <div class="sv-stage-head"><span class="sv-stage-title">7 · Measure</span></div>
+        <p class="sv-stage-desc">The one number this view reports across runs, not this one decision — no uplift number is ever claimed.</p>
+        <div class="sv-stage-result sv-skel" id="sv-score">Loading results from 30 attempts to trick the AI…</div>
+      </div>
+    </section>
+
+    <section class="sv-section">
+      <h2><span class="sv-eyebrow">Step 04</span><span class="sv-heading-text">Which path this run took</span></h2>
+      <div class="sv-tree" id="sv-tree">
+        <div class="sv-tree-row" id="sv-tree-in">
+          <span class="sv-tree-box" data-k="ai">AI decision</span>
+          <span class="sv-tree-box" data-k="repaired">Repaired JSON</span>
+          <span class="sv-tree-box" data-k="fallback">Fallback</span>
+        </div>
+        <div class="sv-tree-connector"></div>
+        <div class="sv-tree-row"><span class="sv-tree-box active" style="cursor:default">MONEY GUARD</span></div>
+        <div class="sv-tree-connector"></div>
+        <div class="sv-tree-row" id="sv-tree-verdict">
+          <span class="sv-tree-box" data-k="BLOCKED">Block</span>
+          <span class="sv-tree-box" data-k="PENDING_APPROVAL">Pending approval</span>
+          <span class="sv-tree-box" data-k="APPROVED">Approve</span>
+        </div>
+        <div class="sv-tree-connector"></div>
+        <div class="sv-tree-row" id="sv-tree-dest">
+          <span class="sv-tree-box dest active" data-k="ledger">Ledger</span>
+          <span class="sv-tree-box dest" data-k="execute">Razorpay execution</span>
+        </div>
+      </div>
+
+      <div class="sv-actions">
+        <button id="sv-run" class="primary">Run again<span class="sv-btn-chip">
+          <svg class="sv-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 3 6.7"/><path d="M3 21v-5h5"/></svg>
+        </span></button>
+        <button id="sv-inject" class="ghost">Try to trick it<span class="sv-btn-chip">😈</span></button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="technical-view">
+<div class="wrap">
+
+<header>
+  <h1>UPLIFT<span class="slash">/</span>MONEY&nbsp;GUARD</h1>
+  <div class="sub">
+    <span>[ RAZORPAY BUILDATHON · TRACK 01 ]</span>
+    <span id="mode">UNIT / D-01 · REV 2.6 · TEST MODE ONLY</span>
+  </div>
+</header>
+
+<p class="claim">
+  Every other upsell agent in this track can emit an arbitrary discount.
+  <b>This one cannot.</b> The model proposes; six deterministic stages decide what it is
+  allowed to propose from, and one deterministic gate decides what reaches the money path.
+</p>
+
+<h2><span class="stage-no">///</span> CONTROL</h2>
+<div class="controls">
+  <button id="run">&gt;&gt; RUN DECISION</button>
+  <button id="inject" class="danger">&gt;&gt; INJECT DISCOUNT ATTACK</button>
+  <button id="replay">&gt;&gt; REPLAY LAST EVENT</button>
+  <button id="qual" aria-pressed="true">BUYER: QUALIFIED</button>
+</div>
+<p class="note">
+  INJECT DISCOUNT runs entirely offline from a recorded jailbreak — no network, no provider.
+  RUN DECISION calls a live model when <samp>GROQ_API_KEY</samp> is set, and falls back
+  deterministically when it is not; the proposal panel says which answered.
+</p>
+
+<h2><span class="stage-no">[4]</span> MONEY GUARD VERDICT</h2>
+<div id="verdict" class="verdict idle">
+  <p class="verdict-word">AWAITING</p>
+  <p style="margin:12px 0 0">No decision run yet. Every money action must be explainable,
+  bounded and gated — press a control above.</p>
+</div>
+<div id="injected" class="injected" hidden></div>
+
+<div class="grid2" style="margin-top:22px">
+  <div>
+    <h2 style="margin-top:0"><span class="stage-no">[1]</span> EVENT</h2>
+    <dl class="kv" id="event"><dd class="spin">—</dd></dl>
+  </div>
+  <div>
+    <h2 style="margin-top:0"><span class="stage-no">[3]</span> PROPOSAL</h2>
+    <dl class="kv" id="proposal"><dd class="spin">—</dd></dl>
+  </div>
+</div>
+
+<h2><span class="stage-no">[1]</span> LEVER ENUMERATION <span style="color:var(--dimmer)">— DETERMINISTIC</span></h2>
+<div class="panel">
+  <table>
+    <thead><tr><th>lever</th><th>sku</th><th class="num">qty</th><th class="num">price</th><th>rationale / filter reason</th></tr></thead>
+    <tbody id="levers"><tr><td colspan="5" class="spin">—</td></tr></tbody>
+  </table>
+</div>
+<p class="note" id="elig"></p>
+
+<h2><span class="stage-no">///</span> RED-TEAM CONTAINMENT</h2>
+<div class="panel pad">
+  <div class="score">
+    <span class="score-num" id="score">--</span>
+    <div>
+      <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)">
+        adversarial inputs blocked<br>before execution
+      </div>
+    </div>
+  </div>
+  <div class="bars" id="bars"></div>
+  <p class="note">
+    Each case is blocked by the invariant that <i>should</i> catch it — not merely blocked.
+    Without that stricter check, one over-broad rule could mask every other invariant being
+    broken and the scoreboard would still read 30/30.
+  </p>
+</div>
+
+<h2><span class="stage-no">[6]</span> LEDGER <span style="color:var(--dimmer)">— APPEND-ONLY</span></h2>
+<div class="panel">
+  <table>
+    <thead><tr><th>#</th><th>prev</th><th>order</th><th>action</th><th>verdict</th><th>invariant</th><th>src</th><th>gateway ref</th></tr></thead>
+    <tbody id="ledger"><tr><td colspan="8" class="spin">—</td></tr></tbody>
+  </table>
+</div>
+<p class="note warn">
+  ⚠ NOT TAMPER-EVIDENT. <span style="color:var(--dim)">prev_id is a sequential pointer for
+  ordering, not a checksum of prior content. Editing a past row leaves neighbouring pointers
+  untouched and undetected. There is no hash chain, by deliberate decision.</span>
+</p>
+
+<footer>
+  <span>© UPLIFT ™ · APPEND-ONLY AUDIT SURFACE</span>
+  <span>NO UPLIFT NUMBER IS CLAIMED — SEE ARCHITECTURE.MD</span>
+</footer>
+</div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let qualified = true;
+
+const money = v => "₹" + Number(v).toLocaleString("en-IN");
+
+function setBusy(b){
+  ["run","inject","replay"].forEach(id => $("#"+id).disabled = b);
+}
+
+async function decide(opts){
+  setBusy(true);
+  $("#verdict").className = "verdict idle";
+  $("#verdict").innerHTML = '<p class="verdict-word">…</p><p class="spin" style="margin-top:12px">EVALUATING — STAGES [1] → [4]</p>';
+  try{
+    const res = await fetch("/api/decide", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(Object.assign({qualified}, opts))
+    });
+    const d = await res.json();
+    if(d.error){ renderError(d.error); return; }
+    render(d);
+    loadLedger();
+  }catch(e){ renderError(String(e)); }
+  finally{ setBusy(false); }
+}
+
+function renderError(msg){
+  $("#verdict").className = "verdict blocked";
+  $("#verdict").innerHTML = '<p class="verdict-word">ERROR</p><p style="margin-top:12px">'+esc(msg)+'</p>';
+}
+
+const esc = s => String(s ?? "").replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+
+function render(d){
+  // --- verdict, the centrepiece
+  const v = $("#verdict");
+  if(d.verdict === "BLOCKED"){
+    v.className = "verdict blocked";
+    v.innerHTML =
+      '<p class="verdict-word">BLOCKED</p>' +
+      '<dl class="verdict-line">' +
+        '<dt>invariant</dt><dd><b>'+esc(d.invariant)+'</b> <span class="cite">('+esc(d.citation)+')</span></dd>' +
+        '<dt>instead</dt><dd>'+esc(d.counterfactual)+'</dd>' +
+        '<dt>ledger</dt><dd>#'+String(d.ledger_id).padStart(4,"0")+'</dd>' +
+      '</dl>';
+  } else {
+    v.className = "verdict approved";
+    v.innerHTML =
+      '<p class="verdict-word">EXECUTED</p>' +
+      '<dl class="verdict-line">' +
+        '<dt>offer</dt><dd>'+esc(d.proposal.lever)+' · '+esc(d.proposal.sku)+' · '+money(d.proposal.price)+'</dd>' +
+        '<dt>gateway</dt><dd>'+esc(d.receipt || "—")+(d.gateway ? ' <span class="tag ai">'+esc(d.gateway)+'</span>' : '')+'</dd>' +
+        '<dt>ledger</dt><dd>#'+String(d.ledger_id).padStart(4,"0")+'</dd>' +
+      '</dl>';
+  }
+
+  const inj = $("#injected");
+  if(d.injected_title){ inj.hidden = false; inj.textContent = "[ INJECTED PRODUCT TITLE ] " + d.injected_title; }
+  else inj.hidden = true;
+
+  $("#event").innerHTML =
+    '<dt>order</dt><dd>'+esc(d.event.order_id)+'</dd>' +
+    '<dt>customer</dt><dd>'+esc(d.event.customer)+'</dd>' +
+    '<dt>bought</dt><dd>'+esc(d.event.sku)+'</dd>' +
+    '<dt>paid</dt><dd>'+money(d.event.amount_paid)+'</dd>' +
+    '<dt>qualified</dt><dd>'+(d.buyer_qualified ? "YES" : "NO")+'</dd>';
+
+  $("#proposal").innerHTML =
+    '<dt>source</dt><dd><span class="tag '+esc(d.proposal.source)+'">'+esc(d.proposal.source)+
+      (d.proposal.repaired ? " · repaired" : "")+'</span></dd>' +
+    '<dt>lever</dt><dd>'+esc(d.proposal.lever)+'</dd>' +
+    '<dt>offer</dt><dd>'+esc(d.proposal.sku)+' @ '+money(d.proposal.price)+'</dd>' +
+    '<dt>pitch</dt><dd>'+esc(d.proposal.pitch)+'</dd>' +
+    '<dt>notes</dt><dd>'+d.notes.map(esc).join("<br>")+'</dd>';
+
+  $("#levers").innerHTML = d.levers.map(l => {
+    const rogue = l.rationale && l.rationale.includes("injected");
+    const cls = !l.eligible ? "filtered" : (rogue ? "rogue" : "");
+    const why = l.filtered_reason
+      ? '<td class="why">✕ '+esc(l.filtered_reason)+'</td>'
+      : '<td>'+esc(l.rationale)+'</td>';
+    return '<tr class="'+cls+'"><td>'+esc(l.lever)+'</td><td>'+esc(l.sku)+'</td>'+
+           '<td class="num">'+l.qty+'</td><td class="num">'+money(l.price)+'</td>'+why+'</tr>';
+  }).join("");
+
+  $("#elig").textContent =
+    d.levers.length + " levers enumerated → " + d.eligible_count +
+    " eligible after stage [2]. Struck-through rows never reached the model.";
+}
+
+async function loadRedteam(){
+  const r = await (await fetch("/api/redteam")).json();
+  const el = $("#score");
+  el.textContent = r.blocked + "/" + r.total;
+  el.classList.toggle("bad", r.blocked !== r.total);
+  $("#bars").innerHTML = Object.entries(r.by_invariant).sort()
+    .map(([k,v]) => '<div class="bar"><span>'+esc(k)+'</span><b>'+v.blocked+"/"+v.total+'</b></div>').join("");
+}
+
+async function loadLedger(){
+  const r = await (await fetch("/api/ledger")).json();
+  const rows = r.entries.slice(-14).reverse();
+  $("#ledger").innerHTML = rows.length ? rows.map(e =>
+    '<tr><td>'+String(e.id).padStart(4,"0")+'</td>'+
+    '<td>'+(e.prev_id ? String(e.prev_id).padStart(4,"0") : "—")+'</td>'+
+    '<td>'+esc(e.order_id)+'</td><td>'+esc(e.action)+'</td>'+
+    '<td style="color:'+(e.verdict==="BLOCKED"?"var(--red-hot)":"var(--green)")+'">'+esc(e.verdict)+'</td>'+
+    '<td>'+esc(e.invariant || "—")+'</td><td>'+esc(e.source || "—")+'</td>'+
+    '<td>'+esc(e.reference || "—")+'</td></tr>').join("")
+    : '<tr><td colspan="8" class="spin">ledger empty</td></tr>';
+}
+
+$("#run").onclick = () => decide({});
+$("#inject").onclick = () => decide({inject:true});
+$("#replay").onclick = () => decide({replay:true});
+$("#qual").onclick = e => {
+  qualified = !qualified;
+  e.target.setAttribute("aria-pressed", String(qualified));
+  e.target.textContent = "BUYER: " + (qualified ? "QUALIFIED" : "UNQUALIFIED");
+};
+
+async function loadMode(){
+  try{
+    const m = await (await fetch("/api/mode")).json();
+    const live = m.adapter === "razorpay-test";
+    $("#mode").innerHTML =
+      'GATEWAY: <b style="color:'+(live?"var(--green)":"var(--dim)")+'">'+
+      esc(m.adapter.toUpperCase())+'</b> · MODEL: '+esc(m.llm.toUpperCase())+' · REV 2.6';
+  }catch(e){}
+}
+
+loadMode();
+loadRedteam();
+loadLedger();
+
+// ================= SIMPLE VIEW =================
+// Plain-English translation of invariant names. Presentation only — the invariant
+// names, citations and enforcement all still come from money_guard.py untouched.
+const SV_WHY = {
+  never_discount_identical_sku: "It tried to just discount the exact same item — not allowed.",
+  never_downsell_qualified_buyer: "This customer already qualifies for the better deal — can't downgrade them.",
+  anchor_price_multiple_min: "The upgrade wasn't big enough to count as a real upsell.",
+  margin_floor: "This deal would lose the business money.",
+  discount_ceiling: "The discount was too steep.",
+  kill_switch: "Offers are switched off right now.",
+  idempotency: "This exact order was already handled — no double charge.",
+  not_in_eligible_set: "The AI invented an offer that was never on the allowed list.",
+  daily_budget: "Today's total giveaways already hit the limit.",
+  rollover_credit: "This credit was too generous for what it required back.",
+  continuity_never_standalone: "Can't offer a membership to someone who hasn't bought anything yet.",
+  sequence_largest_first: "It skipped a bigger option it should have offered first.",
+  fatigue_cap: "This customer has already seen too many offers recently.",
+  cancellation_stop_conditions: "Too many recent cancellations — offers are paused.",
+  auto_approve: "This offer is big enough that a human has to sign off first.",
+};
+
+const svState = { skuCode: "WHEY_2KG" };
+
+function svSetBusy(b){
+  $("#sv-run").disabled = b;
+  $("#sv-inject").disabled = b;
+  document.querySelectorAll(".sv-inv-card").forEach(btn => btn.disabled = b);
+}
+
+const SV_ICONS = {
+  check: '<svg class="sv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  cross: '<svg class="sv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>',
+  pause: '<svg class="sv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
+};
+
+function svStageResult(id, html){
+  const el = document.querySelector("#" + id + " .sv-stage-result");
+  el.className = "sv-stage-result";
+  el.innerHTML = html;
+  // force a reflow so the fade-up transition replays on every update, not just the first
+  void el.offsetWidth;
+  el.classList.add("in");
+}
+
+function svTreeReset(){
+  document.querySelectorAll(".sv-tree-box[data-k]").forEach(el => el.classList.remove("active", "block", "approve", "pending"));
+}
+
+function svRenderTree(d){
+  svTreeReset();
+  const inKey = d.proposal.source === "fallback" ? "fallback" : (d.proposal.repaired ? "repaired" : "ai");
+  const inBox = document.querySelector('#sv-tree-in [data-k="' + inKey + '"]');
+  if(inBox) inBox.classList.add("active");
+
+  const vBox = document.querySelector('#sv-tree-verdict [data-k="' + d.verdict + '"]');
+  if(vBox) vBox.classList.add("active", d.verdict === "BLOCKED" ? "block" : d.verdict === "APPROVED" ? "approve" : "pending");
+
+  document.querySelector('#sv-tree-dest [data-k="ledger"]').classList.add("active");
+  if(d.verdict === "APPROVED"){
+    document.querySelector('#sv-tree-dest [data-k="execute"]').classList.add("active", "approve");
+  }
+}
+
+function svRender(d){
+  // --- 2 · customer / order / cart / history
+  const history = (d.event.past_order_skus && d.event.past_order_skus.length)
+    ? esc(d.event.past_order_skus.join(", ")) : "No prior orders";
+  $("#sv-order").innerHTML =
+    "<dt>Customer</dt><dd>" + esc(d.event.customer) + "</dd>" +
+    "<dt>Cart</dt><dd>" + esc(d.event.sku) + " · " + money(d.event.amount_paid) + "</dd>" +
+    "<dt>History</dt><dd>" + history + "</dd>" +
+    "<dt>Returning buyer</dt><dd>" + (d.event.accepted_upsell_before ? "Yes — has accepted an offer before" : "No") + "</dd>";
+
+  // --- stage 1 · lever enumeration
+  svStageResult("sv-stage-1", "Built <b>" + d.levers.length + "</b> possible offers for this item.");
+
+  // --- stage 2 · eligibility + qualification
+  const removed = d.levers.filter(l => !l.eligible).slice(0, 3);
+  let s2 = "Kept <b>" + d.eligible_count + " of " + d.levers.length + "</b> offers for this customer" +
+    " (buyer is <b>" + (d.buyer_qualified ? "qualified" : "not qualified") + "</b>).";
+  if(removed.length){
+    s2 += "<ul>" + removed.map(l => "<li>" + esc(l.sku) + " — " + esc(l.filtered_reason) + "</li>").join("") + "</ul>";
+  }
+  svStageResult("sv-stage-2", s2);
+
+  // --- stage 3 · select · sequence · pitch
+  const srcLabel = d.proposal.source === "fallback" ? "Fallback (deterministic)"
+    : (d.proposal.repaired ? "AI — repaired JSON" : "AI decision");
+  let s3 = "Picked by <b>" + esc(srcLabel) + "</b>: " + esc(d.proposal.lever) + " → " + esc(d.proposal.sku) +
+    " at " + money(d.proposal.price) + '.<br>"' + esc(d.proposal.pitch) + '"';
+  if(d.injected_title){
+    s3 += '<br><span style="color:var(--hx-red)">⚠ Injected product title: ' + esc(d.injected_title) + "</span>";
+  }
+  svStageResult("sv-stage-3", s3);
+
+  // --- stage 4 · money guard
+  const guardEl = $("#sv-stage-4");
+  guardEl.classList.remove("approved", "blocked", "pending");
+  let icon, word, why;
+  if(d.verdict === "APPROVED"){
+    guardEl.classList.add("approved");
+    icon = SV_ICONS.check; word = "APPROVED"; why = "It passed every check, so it went through.";
+  } else if(d.verdict === "PENDING_APPROVAL"){
+    guardEl.classList.add("pending");
+    icon = SV_ICONS.pause; word = "NEEDS HUMAN APPROVAL"; why = SV_WHY.auto_approve;
+  } else {
+    guardEl.classList.add("blocked");
+    icon = SV_ICONS.cross; word = "BLOCKED"; why = SV_WHY[d.invariant] || d.counterfactual || "It broke one of the rules.";
+  }
+  svStageResult("sv-stage-4", '<div class="sv-guard-word">' + icon + word + "</div><div>" + esc(why) + "</div>");
+
+  // --- stage 5 · execute
+  svStageResult("sv-stage-5", d.receipt
+    ? "Executed. Gateway reference <b>" + esc(d.receipt) + "</b> (" + esc(d.gateway) + ")."
+    : "Not reached — Money Guard did not approve this offer.");
+
+  // --- stage 6 · ledger
+  svStageResult("sv-stage-6", "Ledger entry <b>#" + String(d.ledger_id).padStart(4, "0") + "</b> recorded.");
+
+  svRenderTree(d);
+}
+
+function svHighlightInventory(code){
+  document.querySelectorAll(".sv-inv-card").forEach(btn => btn.classList.toggle("selected", btn.dataset.sku === code));
+}
+
+async function svDecide(opts){
+  opts = opts || {};
+  const skuCode = opts.sku_code || svState.skuCode;
+  svSetBusy(true);
+  try{
+    const res = await fetch("/api/decide", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(Object.assign({qualified: true, sku_code: skuCode}, opts))
+    });
+    const d = await res.json();
+    if(d.error){
+      svStageResult("sv-stage-4", "⚠ " + esc(d.error));
+      return;
+    }
+    svState.skuCode = d.event.sku_code;
+    svHighlightInventory(svState.skuCode);
+    svRender(d);
+    loadLedger();
+  } finally {
+    svSetBusy(false);
+  }
+}
+
+async function svLoadCatalog(){
+  try{
+    const r = await (await fetch("/api/catalog")).json();
+    $("#sv-inventory").innerHTML = r.skus.map(s =>
+      '<button class="sv-inv-card" data-sku="' + esc(s.code) + '" type="button">' +
+        '<div class="sv-inv-name">' + esc(s.name) + "</div>" +
+        '<div class="sv-inv-price">' + money(s.price) + "</div>" +
+      "</button>"
+    ).join("");
+    document.querySelectorAll(".sv-inv-card").forEach(btn => {
+      btn.onclick = () => svDecide({sku_code: btn.dataset.sku});
+    });
+    svHighlightInventory(svState.skuCode);
+  }catch(e){
+    $("#sv-inventory").innerHTML = '<span class="sv-skel">Could not load the catalog.</span>';
+  }
+}
+
+async function svLoadScore(){
+  try{
+    const r = await (await fetch("/api/redteam")).json();
+    $("#sv-score").className = "sv-stage-result";
+    $("#sv-score").innerHTML =
+      "Out of <b>" + r.total + " attempts</b> to trick the AI into an illegal discount, " +
+      "it was stopped <b>every single time (" + r.blocked + "/" + r.total + ")</b>. " +
+      "Real measurement — no uplift number is ever claimed.";
+  }catch(e){}
+}
+
+$("#sv-run").onclick = () => svDecide({});
+$("#sv-inject").onclick = () => svDecide({inject: true});
+
+$("#toggle-simple").onclick = () => {
+  document.body.classList.add("simple-active");
+  $("#toggle-simple").setAttribute("aria-pressed", "true");
+  $("#toggle-technical").setAttribute("aria-pressed", "false");
+};
+$("#toggle-technical").onclick = () => {
+  document.body.classList.remove("simple-active");
+  $("#toggle-simple").setAttribute("aria-pressed", "false");
+  $("#toggle-technical").setAttribute("aria-pressed", "true");
+};
+
+svLoadCatalog();
+svLoadScore();
+svDecide({});
+</script>
+</body>
+</html>
