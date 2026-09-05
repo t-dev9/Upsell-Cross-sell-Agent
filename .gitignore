@@ -17,3 +17,7 @@ ledger.db
 # Local AI assistant tooling — personal skill library, not project source
 .claude/
 .agents/
+
+# Recording notes — local only, never published
+VIDEO_SCRIPT.md
+current_plan.md

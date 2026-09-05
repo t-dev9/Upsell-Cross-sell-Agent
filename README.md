@@ -25,20 +25,35 @@ yourself.
 
 ```bash
 git clone <this repo> && cd uplift
+
+python -m venv .venv
+.venv\Scripts\activate        # Windows;  source .venv/bin/activate  on macOS/Linux
+pip install -e .
+
+uplift demo                    # one order, end to end
+uplift demo --inject-discount  # <- the prompt injection, blocked
+uplift redteam                 # 30/30 blocked, by invariant
+uplift eval --n 100            # policy sweep, real vs simulated
+uplift money-model             # every invariant -> its source -> its test
+uplift demo --replay           # re-send the same event -> idempotency blocks it
+uplift serve                   # <- visual audit trail at localhost:8000
+uplift verify-order <id>       # reconcile a ledger row against the live gateway
+uplift audit verify            # the append-only ledger
+pytest                         # 70 tests
+```
+
+<details>
+<summary>Prefer <code>uv</code>? <code>uv sync</code> then prefix each command with <code>uv run</code>.</summary>
+
+```bash
 pip install uv
 uv sync
-
-uv run uplift demo                    # one order, end to end
-uv run uplift demo --inject-discount  # ← the prompt injection, blocked
-uv run uplift redteam                 # 30/30 blocked, by invariant
-uv run uplift eval --n 100            # policy sweep, real vs simulated
-uv run uplift money-model             # every invariant → its source → its test
-uv run uplift demo --replay           # re-send the same event → idempotency blocks it
-uv run uplift serve                   # ← visual audit trail at localhost:8000
-uv run uplift verify-order <id>       # reconcile a ledger row against the live gateway
-uv run uplift audit verify            # the append-only ledger
-uv run pytest                         # 63 tests
+uv run uplift demo
 ```
+
+The plain-venv path above is listed first deliberately: it needs nothing beyond the
+Python you already have, so a reviewer never has to install a tool to read this project.
+</details>
 
 With no credentials, stage [3] uses a recorded fixture and payments use a mock adapter —
 everything above runs. Add `GROQ_API_KEY` to `.env` (free tier) and stage [3] calls a real
