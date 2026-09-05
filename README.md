@@ -145,6 +145,11 @@ real conversion data, which is precisely why the guarantees are about containmen
   ([docs/verified-order.svg](docs/verified-order.svg)). That is stronger evidence than an image: a
   judge can re-run it, and it **exits non-zero on a mismatch** — a screenshot can neither be
   re-verified nor fail.
+- **Three known, unfixed gaps** — `daily_budget` under-counts multi-quantity offers,
+  `downsell_quality` can never actually reach a customer (Money Guard correctly blocks it every
+  time, as a raw discount), and a race on the ledger's `prev_id` is possible under concurrent
+  requests. None of the three lets an unsafe action through; details and why they're unfixed are in
+  [ARCHITECTURE.md](ARCHITECTURE.md#failures).
 
 ## Build log
 

@@ -55,14 +55,38 @@ class CaseResult:
     matched_expectation: bool
 
 
-class _AlreadySeen:
+class _ReplayStubBase:
+    """Full ReplayLookup implementation with a clean history.
+
+    Every red-team case is expected to be blocked by an earlier check in money_guard's
+    CHECKS list, before any of these are ever called — but if a case someday is NOT
+    blocked earlier (which is exactly the scenario this suite exists to catch), these
+    still need to answer rather than raise AttributeError. A stub that only implements
+    part of the Protocol turns "the guard has a real gap" into a crashed test run instead
+    of a red NOT BLOCKED row.
+    """
+
+    def discount_spend_today(self) -> Decimal:
+        return Decimal(0)
+
+    def has_accepted_anchor_or_upsell(self, customer_id: str) -> bool:
+        return False
+
+    def offers_shown_since(self, customer_id: str, since_iso: str) -> int:
+        return 0
+
+    def outcome_rates(self, lever: str, since_iso: str) -> tuple[float, float, int]:
+        return 0.0, 0.0, 0
+
+
+class _AlreadySeen(_ReplayStubBase):
     """Replay lookup that reports every event as already actioned."""
 
     def find_by_event_id(self, event_id: str) -> object | None:
         return object()
 
 
-class _NeverSeen:
+class _NeverSeen(_ReplayStubBase):
     def find_by_event_id(self, event_id: str) -> object | None:
         return None
 

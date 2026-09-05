@@ -129,6 +129,57 @@ reconstructed afterwards.
   than passing. A verifier whose first real result is a failure it should have produced is a
   verifier worth having; the alternative would have been silent success on a nonexistent order.
 
+- **2026-09-05 22:40** — `fatigue_cap` and `continuity_never_standalone`'s ledger-history path never
+  fired in any real run. `has_accepted_anchor_or_upsell` and `offers_shown_since` matched on
+  `order_id LIKE '%<customer_id>%'`, but no code path that builds an `OrderEvent` ever puts the
+  customer id inside the order id — `cli.py` builds `order_demo_6a8ba6b0` for `cust_1042`,
+  `eval/generate.py` builds `order_0001` for `cust_0001`. `offers_shown_since` always returned 0, so
+  the cap never blocked anything outside a test, and the tests passed because they exercise
+  `_LedgerStub`, never the real `Ledger`. Fixed by adding a `customer_id` column, written on every
+  `record()`/`record_outcome()` call, and matching on equality instead of a substring guess.
+
+- **2026-09-05 22:40** — `uplift redteam` (and `/api/redteam`) could crash instead of reporting a
+  case that got through. `_AlreadySeen`/`_NeverSeen` only implemented one of `ReplayLookup`'s five
+  methods; every case is currently blocked before `_check_daily_budget` or the other
+  history-reading checks ever call the other four, so it never surfaced — but the first case that
+  stopped being blocked would have raised `AttributeError` instead of printing a red `NOT BLOCKED`
+  row, which is exactly the moment this suite has something to say. Fixed by giving both stubs a
+  full, clean-history implementation of the Protocol.
+
+- **2026-09-05 22:40** — A gateway call that fails mid-flight left no ledger row, so a replay of the
+  same `event_id` was not caught by `idempotency` and could execute a second order. `execute()` ran
+  before `ledger.record()` and nothing caught what's in between; a dropped connection after Razorpay
+  had already created the order (the `WinError 10054` above is the proof this actually happens on
+  this network) would vanish with nothing written. Fixed the reachable half: a failed `execute()` now
+  writes an `ATTEMPTED` row before re-raising, so `_check_idempotency` sees it on any replay. Full
+  reconciliation of an `ATTEMPTED` row against what Razorpay actually holds is not built — see Known
+  limitations below.
+
+- **2026-09-05 22:40** — The Technical dashboard's verdict panel was `if BLOCKED {...} else
+  {...EXECUTED...}` — a `PENDING_APPROVAL` result (auto_approve holding a large offer for a human)
+  rendered as a green EXECUTED action with a gateway reference, which is false: nothing executed.
+  The Simple view's renderer already had a correct three-way branch; the Technical one didn't, and
+  both are live on the same page. Reachable whenever the highest-priced eligible candidate clears
+  the auto-approve threshold, which is exactly what `fallback_select` (highest price wins) picks
+  when the model provider is down. Fixed: added the missing `PENDING_APPROVAL` branch.
+
+### Known limitations (found, not fixed — see the entries above for what these are not)
+
+- **`daily_budget` under-counts multi-quantity offers.** `discount_spend_today()` subtracts the
+  ledger's stored offer price (a total, for `quantity` units) from `sku.list_price` (a per-unit
+  price) — correct at quantity 1, wrong above it. A 2× bulk offer whose real give-away is ₹700
+  computes a negative number and is silently excluded from the running total. The ledger schema has
+  no `quantity` column to fix this without a migration; not attempted under this time budget.
+- **`downsell_quality` is a dead lever.** It proposes the same SKU code at a lower price and the same
+  quantity as the purchase — which is definitionally what `never_discount_identical_sku` exists to
+  block. The guard is doing its job (nothing unsafe reaches execution), but this means five of the
+  six claimed levers can actually reach a customer, not six.
+- **Concurrent `/api/decide` requests can race on `prev_id`.** `Ledger.record()` reads `MAX(id)`
+  and then inserts in two separate statements, not one atomic operation. Under
+  `ThreadingHTTPServer`, two requests arriving close together can both read the same `MAX(id)` and
+  both insert with the same `prev_id`, permanently breaking `verify_sequence()`'s ordering check for
+  that ledger — an append-only log has no way to correct this after the fact.
+
 ## EVAL
 
 `uplift eval --n 100` runs 100 reproducible synthetic events (fixed seed) through stages

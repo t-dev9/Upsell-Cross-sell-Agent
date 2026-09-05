@@ -20,20 +20,21 @@ from .models import GuardResult, LedgerEntry, OrderEvent
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS ledger (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    prev_id    INTEGER,
-    event_id   TEXT NOT NULL,
-    order_id   TEXT NOT NULL,
-    action     TEXT NOT NULL,
-    lever      TEXT,
-    sku_code   TEXT,
-    amount     TEXT,
-    verdict    TEXT NOT NULL,
-    invariant  TEXT,
-    citation   TEXT,
-    source     TEXT,
-    reference  TEXT,
-    created_at TEXT NOT NULL
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    prev_id     INTEGER,
+    event_id    TEXT NOT NULL,
+    order_id    TEXT NOT NULL,
+    customer_id TEXT,
+    action      TEXT NOT NULL,
+    lever       TEXT,
+    sku_code    TEXT,
+    amount      TEXT,
+    verdict     TEXT NOT NULL,
+    invariant   TEXT,
+    citation    TEXT,
+    source      TEXT,
+    reference   TEXT,
+    created_at  TEXT NOT NULL
 );
 """
 
@@ -54,7 +55,7 @@ class Ledger:
         widen in place rather than asking anyone to delete their audit trail.
         """
         have = {r["name"] for r in self._conn.execute("PRAGMA table_info(ledger)")}
-        for column, ddl in (("reference", "TEXT"),):
+        for column, ddl in (("reference", "TEXT"), ("customer_id", "TEXT")):
             if column not in have:
                 self._conn.execute(f"ALTER TABLE ledger ADD COLUMN {column} {ddl}")
 
@@ -78,13 +79,14 @@ class Ledger:
         amount = str(cand.offer_price) if cand else None
         cur = self._conn.execute(
             """INSERT INTO ledger
-               (prev_id, event_id, order_id, action, lever, sku_code, amount,
+               (prev_id, event_id, order_id, customer_id, action, lever, sku_code, amount,
                 verdict, invariant, citation, source, reference, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 self._last_id(),
                 event.event_id,
                 event.order_id,
+                event.customer.id,
                 action,
                 cand.lever.value if cand else None,
                 cand.sku_code if cand else None,
@@ -162,13 +164,13 @@ class Ledger:
     def has_accepted_anchor_or_upsell(self, customer_id: str) -> bool:
         """Did this customer ever accept an anchor or upsell offer?
 
-        Backs continuity_never_standalone (MM p.146). Matched on the order_id prefix
-        the demo uses plus the executed lever, since the ledger stores the order rather
-        than the customer.
+        Backs continuity_never_standalone (MM p.146). Matched on customer_id equality —
+        a row written before this column existed has customer_id NULL and simply never
+        matches, which is the correct "no history" answer for it.
         """
         rows = self._conn.execute(
-            "SELECT lever FROM ledger WHERE action = 'EXECUTED' AND order_id LIKE ?",
-            (f"%{customer_id}%",),
+            "SELECT lever FROM ledger WHERE action = 'EXECUTED' AND customer_id = ?",
+            (customer_id,),
         ).fetchall()
         return any(
             r["lever"] and (r["lever"].startswith("upsell") or r["lever"] == "anchor_upsell")
@@ -180,12 +182,13 @@ class Ledger:
 
         Backs fatigue_cap. Counts EXECUTED and PENDING_APPROVAL: both put an offer in
         front of the customer. Blocked proposals never reached them, so they do not fatigue.
+        Matched on customer_id equality, not on any substring of the order id.
         """
         rows = self._conn.execute(
             "SELECT COUNT(*) AS n FROM ledger "
-            "WHERE order_id LIKE ? AND created_at >= ? "
+            "WHERE customer_id = ? AND created_at >= ? "
             "AND action IN ('EXECUTED','PENDING_APPROVAL')",
-            (f"%{customer_id}%", since_iso),
+            (customer_id, since_iso),
         ).fetchone()
         return int(rows["n"] or 0)
 
@@ -222,14 +225,15 @@ class Ledger:
         ).fetchone()
         if prior is None:
             raise KeyError(f"no executed order {order_id!r} to {action.lower()}")
+        prior_customer_id = prior["customer_id"] if "customer_id" in prior.keys() else None
         cur = self._conn.execute(
             """INSERT INTO ledger
-               (prev_id, event_id, order_id, action, lever, sku_code, amount,
+               (prev_id, event_id, order_id, customer_id, action, lever, sku_code, amount,
                 verdict, invariant, citation, source, reference, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
-                self._last_id(), prior["event_id"], order_id, action, prior["lever"],
-                prior["sku_code"], prior["amount"], prior["verdict"], None, None,
+                self._last_id(), prior["event_id"], order_id, prior_customer_id, action,
+                prior["lever"], prior["sku_code"], prior["amount"], prior["verdict"], None, None,
                 prior["source"], prior["reference"],
                 datetime.now(timezone.utc).isoformat(timespec="seconds"),
             ),

@@ -71,6 +71,7 @@
   .verdict{border:2px solid var(--line);padding:20px;margin-top:6px;background:var(--panel)}
   .verdict.blocked{border-color:var(--red)}
   .verdict.approved{border-color:var(--green)}
+  .verdict.pending{border-color:#D97706}
   .verdict.idle{border-style:dashed;color:var(--dimmer)}
   .verdict-word{
     font-size:clamp(2rem,6vw,4.5rem);line-height:.85;letter-spacing:-.04em;
@@ -78,6 +79,7 @@
   }
   .verdict.blocked .verdict-word{color:var(--red-hot)}
   .verdict.approved .verdict-word{color:var(--green)}
+  .verdict.pending .verdict-word{color:#D97706}
   .verdict-line{margin-top:14px;font-size:13px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px}
   .verdict-line dt{color:var(--dim);font-size:10px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
   .verdict-line dd{margin:0}
@@ -542,6 +544,16 @@ function render(d){
       '<dl class="verdict-line">' +
         '<dt>invariant</dt><dd><b>'+esc(d.invariant)+'</b> <span class="cite">('+esc(d.citation)+')</span></dd>' +
         '<dt>instead</dt><dd>'+esc(d.counterfactual)+'</dd>' +
+        '<dt>ledger</dt><dd>#'+String(d.ledger_id).padStart(4,"0")+'</dd>' +
+      '</dl>';
+  } else if(d.verdict === "PENDING_APPROVAL"){
+    v.className = "verdict pending";
+    v.innerHTML =
+      '<p class="verdict-word">PENDING APPROVAL</p>' +
+      '<dl class="verdict-line">' +
+        '<dt>invariant</dt><dd><b>'+esc(d.invariant)+'</b> <span class="cite">('+esc(d.citation)+')</span></dd>' +
+        '<dt>held because</dt><dd>'+esc(d.counterfactual)+'</dd>' +
+        '<dt>offer</dt><dd>'+esc(d.proposal.lever)+' · '+esc(d.proposal.sku)+' · '+money(d.proposal.price)+'</dd>' +
         '<dt>ledger</dt><dd>#'+String(d.ledger_id).padStart(4,"0")+'</dd>' +
       '</dl>';
   } else {

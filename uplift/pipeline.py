@@ -62,7 +62,16 @@ def run(
 
     receipt: ExecutionReceipt | None = None
     if result.approved:
-        receipt = adapter.execute(result, event.order_id)  # [5] — only reachable here
+        try:
+            receipt = adapter.execute(result, event.order_id)  # [5] — only reachable here
+        except Exception:
+            # The gateway call may have succeeded on Razorpay's side even though this
+            # process never saw the response (a dropped connection after order creation
+            # is a real, observed failure mode here — see ARCHITECTURE.md FAILURES).
+            # Record that an attempt was made *before* re-raising, so a replay of this
+            # same event_id is blocked by idempotency instead of executing a second time.
+            ledger.record(event, result, "ATTEMPTED")
+            raise
         action = "EXECUTED"
     elif result.verdict is Verdict.PENDING_APPROVAL:
         # Legal but large. Recorded for a human; stage [5] is not reached.
