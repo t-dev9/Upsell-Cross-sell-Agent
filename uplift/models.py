@@ -127,7 +127,7 @@ class GuardResult(BaseModel):
 
     razorpay_adapter.execute() takes a GuardResult, so execution is unreachable without
     one. A BLOCKED result carries the invariant that fired, its citation, and what the
-    system did instead, because CLAUDE.md section 7 requires all three in CLI output.
+    system did instead — a rejection the CLI can't explain is not auditable.
     """
 
     model_config = {"frozen": True}

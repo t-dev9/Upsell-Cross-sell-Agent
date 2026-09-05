@@ -39,8 +39,8 @@ reconstructed afterwards.
   right and the assertion was too specific. Widened to assert the property that matters
   — no path to execution — rather than which of two overlapping checks fires first.
 
-- **2026-09-05 09:12** — The sensitivity sweep's predicted result did not exist. Both
-  `current_plan.md` and CLAUDE.md §8 stated the rank flip would be **Anchor Upsell ↔
+- **2026-09-05 09:12** — The sensitivity sweep's predicted result did not exist. The
+  build plan stated the rank flip would be **Anchor Upsell ↔
   Cross-sell** between Set A and Set C. The spike run before building the harness showed
   cross-sell never reaching #1 in any set. Cause is arithmetic, not tuning: the best
   cross-sell in the catalog carries ₹739 gross profit against the anchor's ₹13,999, so no
@@ -49,11 +49,11 @@ reconstructed afterwards.
   actually occurs. Took the second: **frequency-first ↔ anchor-first**. Pinned in
   `test_rank_flip_actually_occurs` and `test_cross_sell_cannot_win_on_gross_profit` so the
   docs cannot drift back. The predicted flip was written before the simulator existed;
-  checking it first, as CLAUDE.md §8 requires, is the only reason it was caught.
+  checking it first, as the honesty rules require, is the only reason it was caught.
 
 - **2026-09-05 09:20** — `idempotency` was Tier 2 and unbuilt while the red-team suite's
   repeated-webhook category depended on it — the suite would have reported 30/30 with one
-  category having no enforcement behind it. CLAUDE.md §3 had already named idempotency the
+  category having no enforcement behind it. The build plan had already named idempotency the
   first promotion candidate once Tier 1 was complete, and it was, so it was promoted rather
   than the category being dropped. Required threading a `ReplayLookup` protocol through
   `money_guard.evaluate`; the ledger satisfies it. `test_idempotency_blocks_replay_end_to_end`
@@ -93,7 +93,7 @@ reconstructed afterwards.
   the guard was right; overlapping checks mean a test must pick prices that isolate the
   rule it names.
 
-- **2026-09-05 15:47** — CLAUDE.md §8 claimed added LTGP and 30-day GP per acquired customer were
+- **2026-09-05 15:47** — An earlier draft of this file claimed added LTGP and 30-day GP per acquired customer were
   "reported per-decision from actually-executed test-mode actions." Neither existed, and the first
   half **cannot** exist: `added LTGP = conversion × GP` needs conversion, and `LiveAdapter` creates
   Razorpay orders without ever capturing them, so no offer is ever accepted. Any conversion figure
@@ -194,8 +194,8 @@ command exit non-zero.** A rule you enforce is engineering; a rule you quote is 
 Fifteen enforced rules, fifteen tests. **`TIER_2_UNUSED` is now empty** — nothing is listed that
 isn't enforced.
 
-`cancellation_stop_conditions` was conditional on a monitor existing, and CLAUDE.md required the row
-be deleted if it wasn't built. It was built: `uplift cancel <order_id>` appends `CANCELLED` /
+`cancellation_stop_conditions` was conditional on a monitor existing, and the rule was that the row
+must be deleted if it wasn't built. It was built: `uplift cancel <order_id>` appends `CANCELLED` /
 `REFUNDED` rows and `Ledger.outcome_rates` computes the three cited rates over a rolling window.
 Verified end to end — after two real cancellations, the guard blocked the affected offer type:
 
@@ -210,8 +210,8 @@ BLOCKED — cancellation_stop_conditions (MM p.59,144,35)
 the path it refuses a block. `test_auto_approve` asserts the adapter raises `ExecutionRefused` and
 records no receipt. This is the ledger-state replacement for the cut FastAPI approval queue.
 
-**The red-team suite is still exactly 30 cases** and still 30/30. CLAUDE.md §9 calls it a fixed,
-non-negotiable set, and `test_suite_is_exactly_thirty_cases` enforces that, so the three invariants
+**The red-team suite is still exactly 30 cases** and still 30/30. It's a fixed,
+non-negotiable set by design, and `test_suite_is_exactly_thirty_cases` enforces that, so the three invariants
 added in chunk 4 are covered by unit tests rather than by inflating the denominator. A scoreboard
 that grows whenever a rule is added measures effort, not containment.
 

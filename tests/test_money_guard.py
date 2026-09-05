@@ -343,7 +343,7 @@ def test_money_guard_never_reads_proposal_source():
 
 
 def test_every_tier_1_invariant_has_a_test():
-    """CLAUDE.md section 3: no enforcing test => delete the row.
+    """The rule: no enforcing test => delete the row.
 
     Enforced mechanically here rather than by hand-checking the table.
     """

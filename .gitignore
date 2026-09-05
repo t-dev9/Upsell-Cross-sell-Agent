@@ -14,6 +14,6 @@ __pycache__/
 *.sqlite3
 ledger.db
 
-# Local Claude Code tooling — personal skill library, not project source
+# Local AI assistant tooling — personal skill library, not project source
 .claude/
 .agents/

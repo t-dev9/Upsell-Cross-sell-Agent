@@ -55,7 +55,7 @@ class Config(BaseModel):
     # bound — they are structural checks, always on, and cannot be configured off.
     # MM p.97-98 and LTV p.19 respectively.
 
-    # --- promoted from Tier 2 once Tier 1 was complete and tested (CLAUDE.md section 3)
+    # --- promoted from Tier 2 once Tier 1 was complete and tested
     daily_budget_inr: Decimal = Field(
         default=Decimal("5000"),
         description="ours — cap on cumulative discount/credit given away in one day, "
@@ -108,7 +108,7 @@ class Config(BaseModel):
     )
 
     # ------------------------------------------------------ Stage [3] selector
-    llm_provider: Literal["groq", "fixture", "anthropic"] = Field(
+    llm_provider: Literal["groq", "fixture"] = Field(
         default="fixture",
         description="Which LLMProvider backs stage [3]. 'fixture' is the no-key default so "
         "the quickstart runs with no credentials.",
@@ -128,8 +128,8 @@ class Config(BaseModel):
 # NOT ENFORCED. These keys exist so the priority order is legible, but no check in
 # money_guard.py reads them and no MONEY_MODEL row may cite them.
 #
-# CLAUDE.md section 3: "a threshold sitting unused in config.py is not enforcement and
-# must not be presented as one." They stay inert until their check and test ship.
+# The rule: a threshold sitting unused in config.py is not enforcement and
+# must not be presented as one. They stay inert until their check and test ship.
 
 TIER_2_UNUSED: dict[str, str] = {}
 """Empty: every rule the plan named is now enforced with a check and a test."""

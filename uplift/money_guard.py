@@ -103,7 +103,7 @@ def _check_idempotency(
 ) -> None:
     """The same event_id must never produce a second money action.
 
-    Promoted from Tier 2 once Tier 1 was complete and tested, per CLAUDE.md §3 — it is
+    Promoted from Tier 2 once Tier 1 was complete and tested — it is
     the enforcement behind the repeated-webhook red-team category, so leaving it unbuilt
     would have meant claiming a category the code did not cover.
 

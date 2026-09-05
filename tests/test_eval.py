@@ -29,7 +29,7 @@ def test_generation_is_reproducible():
 def test_rank_flip_actually_occurs():
     """The documented flip must be the one the code produces.
 
-    CLAUDE.md's original prediction (Anchor <-> Cross-sell) turned out to be
+    An early prediction (Anchor <-> Cross-sell) turned out to be
     arithmetically impossible with this catalog: a cross-sell tops out around Rs 739
     gross profit against the anchor's Rs 13,999, and no complementarity weight in [0,1]
     closes a 27x gap. The flip that does occur is frequency-first <-> anchor-first, and

@@ -91,21 +91,9 @@ class FixtureProvider:
         return self._response
 
 
-class AnthropicProvider:
-    """Stub. One-line switch if an API key ever appears; nothing depends on it today."""
-
-    def __init__(self, config: Config) -> None:
-        self.name = "anthropic"
-
-    def complete(self, system: str, user: str) -> str:
-        raise RuntimeError("AnthropicProvider not wired — set llm_provider to groq or fixture")
-
-
 def build_provider(config: Config) -> LLMProvider:
     if config.llm_provider == "groq" and os.environ.get("GROQ_API_KEY"):
         return GroqProvider(config)
-    if config.llm_provider == "anthropic":
-        return AnthropicProvider(config)
     return FixtureProvider()
 
 

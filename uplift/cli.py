@@ -355,7 +355,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
 
 def cmd_money_model(args: argparse.Namespace) -> int:
     """Print the invariant -> source -> config key -> test table, and fail if a row has
-    no test. Makes CLAUDE.md's 'no enforcing test => delete the row' mechanical."""
+    no test. Makes 'no enforcing test => delete the row' mechanical rather than a promise."""
     import subprocess
     from pathlib import Path
 
